@@ -1,5 +1,8 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QLabel
+from PyQt5.QtWidgets import (
+    QApplication, QWidget, QPushButton, QVBoxLayout, QHBoxLayout,
+    QLabel, QLineEdit
+)
 from PyQt5.QtCore import Qt
 from cooldown_loop_dilution_v2 import switch_on, switch_off, heater_on, heater_off
 from CTC100 import CTC100Device
@@ -8,7 +11,7 @@ from lakeshore372device import LakeShore372Device
 import serial
 
 
-def connect_devices(): # Connects to devices
+def connect_devices():  # Connects to devices
     devices = serial.tools.list_ports.comports()
 
     ctc100A = None
@@ -39,40 +42,79 @@ def connect_devices(): # Connects to devices
     return {k: v for k, v in connected.items() if v is not None}
 
 
-class SwitchButton(QPushButton): # Makes switch buttons
-    def __init__(self, device, channel, initial_state=False):
+class SwitchControlWidget(QWidget):  # Creates inputs for heat switches
+    def __init__(self, device, channel):
         super().__init__()
         self.device = device
         self.channel = channel
-        self.state = initial_state
+        self.state = False  # OFF by default
 
-        self.setCheckable(True)
-        self.setChecked(initial_state)
-        self.setText(f"{channel}\nSWITCH")
-        self.update_color()
+        layout = QVBoxLayout()
+        self.setLayout(layout)
 
-        self.clicked.connect(self.toggle_switch)
 
-    def update_color(self):
-        self.setStyleSheet(
-            "background-color: lightgreen;" if self.state else "background-color: lightcoral;"
-        )
 
-    def toggle_switch(self):
+        # Label for channel
+        label = QLabel(f"{channel} SWITCH")
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+
+        # Voltage input row
+        row = QHBoxLayout()
+
+        self.voltage_input = QLineEdit()
+        self.voltage_input.setPlaceholderText("Voltage (V)")
+        self.voltage_input.setFixedWidth(90)
+
+        self.set_button = QPushButton("Set Voltage")
+        self.set_button.clicked.connect(self.set_voltage)
+
+        row.addWidget(self.voltage_input)
+        row.addWidget(self.set_button)
+
+        layout.addLayout(row)
+
+        # Off button
+        self.off_button = QPushButton("Turn Off")
+        self.off_button.clicked.connect(self.turn_off)
+        layout.addWidget(self.off_button)
+
+        # Initialize button color
+        self.update_off_button_color()
+
+    def update_off_button_color(self):
+        # Green if ON, red if OFF
+        color = "lightgreen" if self.state else "lightcoral"
+        self.off_button.setStyleSheet(f"background-color: {color};")
+
+    def set_voltage(self):
         try:
-            if not self.state:
-                switch_on(self.device, self.channel)
-                self.state = True
-            else:
-                switch_off(self.device, self.channel)
-                self.state = False
-            self.update_color()
+            voltage = float(self.voltage_input.text())
+            switch_on(self.device, self.channel, voltage)
 
+            # Mark as ON after setting voltage
+            self.state = True
+            self.update_off_button_color()
+
+            print(f"{self.device.name} {self.channel} updated to {voltage} V")
+
+        except ValueError:
+            print("Invalid voltage entered.")
         except Exception as e:
-            print(f"Error toggling switch {self.device.name} {self.channel}: {e}")
+            print(f"Error setting voltage on {self.device.name} {self.channel}: {e}")
+
+    def turn_off(self):
+        try:
+            switch_off(self.device, self.channel)
+            self.state = False
+            self.update_off_button_color()
+            print(f"{self.device.name} {self.channel} switched OFF")
+        except Exception as e:
+            print(f"Error turning off {self.device.name} {self.channel}: {e}")
 
 
-class HeaterButton(QPushButton): # Buttons for heaters
+
+class HeaterButton(QPushButton):  # Buttons for heaters
     def __init__(self, device, channel, initial_state=False):
         super().__init__()
         self.device = device
@@ -105,7 +147,7 @@ class HeaterButton(QPushButton): # Buttons for heaters
             print(f"Error toggling heater {self.device.name} {self.channel}: {e}")
 
 
-class ControlPanel(QWidget): # Creates the control panel
+class ControlPanel(QWidget):  # Creates the control panel
     def __init__(self, devices):
         super().__init__()
         self.setWindowTitle("Heat Switch & Heater Control")
@@ -124,14 +166,10 @@ class ControlPanel(QWidget): # Creates the control panel
             for channel, ch_type in channel_map.items():
                 row = QHBoxLayout()
 
-                if ch_type == "switch": # Tells us what type of button the channel needs
-                    row.addWidget(SwitchButton(dev, channel))
+                if ch_type == "switch":
+                    row.addWidget(SwitchControlWidget(dev, channel))
 
                 elif ch_type == "heater":
-                    row.addWidget(HeaterButton(dev, channel))
-
-                elif ch_type == "both":
-                    row.addWidget(SwitchButton(dev, channel))
                     row.addWidget(HeaterButton(dev, channel))
 
                 device_layout.addLayout(row)
@@ -139,10 +177,9 @@ class ControlPanel(QWidget): # Creates the control panel
             self.main_layout.addLayout(device_layout)
 
     @staticmethod
-    def get_channels_for_device(dev_name): # Maps channels
+    def get_channels_for_device(dev_name):
         """
-        Returns dict: {channel: "switch" | "heater" | "both"}
-        Update this mapping to match your cryostat wiring.
+        Returns dict: {channel: "switch" | "heater"}
         """
 
         if dev_name in ("CTC100A", "CTC100B"):
@@ -155,12 +192,10 @@ class ControlPanel(QWidget): # Creates the control panel
                 "AIO4": "switch",
             }
 
-        # if dev_name == "LakeshoreModel224": ...
-
         return {}
 
 
-if __name__ == "__main__": # Runs code
+if __name__ == "__main__":
     devices = connect_devices()
     app = QApplication(sys.argv)
     panel = ControlPanel(devices)
