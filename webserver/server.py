@@ -164,6 +164,13 @@ def api_still_off():
 # plot_data[device][channel] = list of values
 # plot_data[device]["times"] = list of timestamps
 
+PLOT_MAPPING = {
+    1: ("CTC100A", "4switchA"),
+    2: ("CTC100B", "4switchB"),
+    3: ("Lakeshore372", "MC"),
+    4: ("Lakeshore224", "4K")  # make sure the channel exists in plot_data
+}
+
 plot_data = {
     "CTC100A": {"times": [], "4switchA": [], "4pumpA": [], "3switchA": [], "3pumpA": []},
     "CTC100B": {"times": [], "4switchB": [], "4pumpB": [], "3switchB": [], "3pumpB": []},
@@ -211,6 +218,7 @@ def background_update_thread():
 
 threading.Thread(target=background_update_thread, daemon=True).start()
 
+"""
 @app.route("/plot/<int:plot_id>.png")
 def plot_png(plot_id):
     import matplotlib.pyplot as plt
@@ -231,6 +239,35 @@ def plot_png(plot_id):
         ax.set_xlabel("sample #")
 
     ax.set_title(f"Plot {plot_id}")
+    fig.tight_layout()
+    fig.savefig(buf, format="png")
+    plt.close(fig)
+
+    buf.seek(0)
+    return Response(buf.getvalue(), mimetype="image/png")
+"""
+
+@app.route("/plot/<int:plot_id>.png")
+def plot_png(plot_id):
+    import matplotlib.pyplot as plt
+
+    if plot_id not in PLOT_MAPPING:
+        return "Invalid plot ID", 404
+
+    device, channel = PLOT_MAPPING[plot_id]
+
+    with plot_lock:
+        ys = plot_data.get(device, {}).get(channel, [])
+        xs = plot_data.get(device, {}).get("times", [])
+
+    buf = io.BytesIO()
+    fig, ax = plt.subplots(figsize=(6, 3))
+
+    if xs and ys:
+        ax.plot(xs, ys)
+        ax.set_xlabel("Time (s)")
+
+    ax.set_title(f"{device} — {channel}")
     fig.tight_layout()
     fig.savefig(buf, format="png")
     plt.close(fig)
