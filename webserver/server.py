@@ -92,7 +92,7 @@ def controller_page():
 # -----------------------------
 # SWITCH CONTROL
 # -----------------------------
-@app.route("/api/set_switch", methods=["POST"])
+@app.route("/api/set_switch_voltage", methods=["POST"])
 def api_set_switch():
     data = request.json
     controller.set_switch_voltage(
@@ -100,7 +100,7 @@ def api_set_switch():
     )
     return jsonify(status="ok")
 
-@app.route("/api/switch_off", methods=["POST"])
+@app.route("/api/turn_switch_off", methods=["POST"])
 def api_switch_off():
     data = request.json
     controller.turn_off_switch(
@@ -116,11 +116,11 @@ def api_switch_off():
 def api_set_heater_temp():
     data = request.json
     controller.set_heater_temperature(
-        data["device"], data["channel"], float(data["temperature"])
+        data["device"], data["channel"], float(data["value"])
     )
     return jsonify(status="ok")
 
-@app.route("/api/heater_off", methods=["POST"])
+@app.route("/api/turn_off_heater", methods=["POST"])
 def api_heater_off():
     data = request.json
     controller.turn_off_heater(
@@ -140,7 +140,7 @@ def api_toggle_heater():
 # -----------------------------
 # STILL HEATER CONTROL
 # -----------------------------
-@app.route("/api/set_still", methods=["POST"])
+@app.route("/api/set_still_percentage", methods=["POST"])
 def api_set_still():
     data = request.json
     controller.set_still_percentage(
@@ -148,7 +148,7 @@ def api_set_still():
     )
     return jsonify(status="ok")
 
-@app.route("/api/still_off", methods=["POST"])
+@app.route("/api/turn_off_still", methods=["POST"])
 def api_still_off():
     data = request.json
     controller.turn_off_still(
