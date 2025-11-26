@@ -4,17 +4,15 @@ import numpy as np
 import serial.tools.list_ports
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from threading import Thread
 import h5py
 
-from devices.device import device_lock
 from devices.CTC100 import CTC100Device
 from devices.lakeshore224device import LakeShore224Device
 from devices.lakeshore372device import LakeShore372Device
 
 DEBUG = False
 
-class TemperaturePlotter(Thread):
+class TemperaturePlotter():
     def __init__(self, window_seconds=300, interval=2000, h5_filename=None):
         super().__init__()
         self.window_seconds = window_seconds
@@ -59,27 +57,26 @@ class TemperaturePlotter(Thread):
     def read_temperatures(self):
         devices = self.devices
         readings = {}
-        with device_lock:
-            if "CTC100A" in devices:
-                dev = devices["CTC100A"]
-                readings["CTC100A"] = {k+"A": dev.get_temperature(k) for k in ["4switch","4pump","3switch","3pump"]}
-            if "CTC100B" in devices:
-                dev = devices["CTC100B"]
-                readings["CTC100B"] = {k+"B": dev.get_temperature(k) for k in ["4switch","4pump","3switch","3pump"]}
-            if "Lakeshore224" in devices:
-                dev = devices["Lakeshore224"]
-                readings["Lakeshore224"] = {
-                    "4HePotA": dev.get_temperature("C1"),
-                    "3HePotA": dev.get_temperature("B"),
-                    "4HePotB": dev.get_temperature("C2"),
-                    "3HePotB": dev.get_temperature("D1"),
-                    "Condenser": dev.get_temperature("A"),
-                    "50K Plate": dev.get_temperature("D2"),
-                    "4K Plate": dev.get_temperature("D3")
-                }
-            if "Lakeshore372" in devices:
-                dev = devices["Lakeshore372"]
-                readings["Lakeshore372"] = {"MC": dev.get_temperature("1"), "Still": dev.get_temperature("A")}
+        if "CTC100A" in devices:
+            dev = devices["CTC100A"]
+            readings["CTC100A"] = {k+"A": dev.get_temperature(k) for k in ["4switch","4pump","3switch","3pump"]}
+        if "CTC100B" in devices:
+            dev = devices["CTC100B"]
+            readings["CTC100B"] = {k+"B": dev.get_temperature(k) for k in ["4switch","4pump","3switch","3pump"]}
+        if "Lakeshore224" in devices:
+            dev = devices["Lakeshore224"]
+            readings["Lakeshore224"] = {
+                "4HePotA": dev.get_temperature("C1"),
+                "3HePotA": dev.get_temperature("B"),
+                "4HePotB": dev.get_temperature("C2"),
+                "3HePotB": dev.get_temperature("D1"),
+                "Condenser": dev.get_temperature("A"),
+                "50K Plate": dev.get_temperature("D2"),
+                "4K Plate": dev.get_temperature("D3")
+            }
+        if "Lakeshore372" in devices:
+            dev = devices["Lakeshore372"]
+            readings["Lakeshore372"] = {"MC": dev.get_temperature("1"), "Still": dev.get_temperature("A")}
         return readings
 
     def setup_h5(self, init_read):
