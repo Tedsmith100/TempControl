@@ -96,7 +96,7 @@ def controller_page():
 def api_set_switch():
     data = request.json
     controller.set_switch_voltage(
-        data["device"], data["channel"], float(data["voltage"])
+        data["device"], data["channel"], float(data["value"])
     )
     return jsonify(status="ok")
 
@@ -144,7 +144,7 @@ def api_toggle_heater():
 def api_set_still():
     data = request.json
     controller.set_still_percentage(
-        data["device"], data["channel"], float(data["percent"])
+        data["device"], data["channel"], float(data["value"])
     )
     return jsonify(status="ok")
 
