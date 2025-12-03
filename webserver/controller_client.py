@@ -1,8 +1,9 @@
 import threading
 import socket
 import time
-
+import json
 from cooldown_loop_dilution_v2 import switch_on, switch_off, heater_on, heater_off
+from device import get_channels_for_device
 
 # If your real device_lock exists, import it.
 # Otherwise assign a new lock:
@@ -18,6 +19,7 @@ class DeviceControllerClient(threading.Thread):
         self.host = host
         self.port = port
         self.stop_flag = threading.Event()
+
         self.func_dict = {
             "set_switch_voltage": self.set_switch_voltage,
             "turn_off_switch": self.turn_off_switch,
@@ -26,88 +28,96 @@ class DeviceControllerClient(threading.Thread):
             "toggle_heater": self.toggle_heater,
             "set_still_percentage": self.set_still_percentage,
             "turn_off_still": self.turn_off_still,
+            "get_devices": self.get_devices,
         }
 
-    # ---------------- Switch Functions ----------------
+    # ---------------- Switch Commands ----------------
     def set_switch_voltage(self, device_name, channel, voltage):
         device = self.devices[device_name]
         with hardware_lock:
             switch_on(device, channel, voltage)
 
-    def turn_off_switch(self, device_name, channel):
+    def turn_off_switch(self, device_name, channel, _):
         device = self.devices[device_name]
         with hardware_lock:
             switch_off(device, channel)
 
-    # ---------------- Heater Functions ----------------
+    # ---------------- Heater Commands ----------------
     def set_heater_temperature(self, device_name, channel, temperature):
         device = self.devices[device_name]
         with hardware_lock:
             device.write_setpoint(channel, temperature)
             heater_on(device, channel)
 
-    def turn_off_heater(self, device_name, channel):
+    def turn_off_heater(self, device_name, channel, _):
         device = self.devices[device_name]
         with hardware_lock:
             heater_off(device, channel)
 
-    def toggle_heater(self, device_name, channel, state: bool):
+    def toggle_heater(self, device_name, channel, state):
         device = self.devices[device_name]
         with hardware_lock:
-            if state:
+            if state == "1":
                 heater_on(device, channel)
             else:
                 heater_off(device, channel)
 
-    # ---------------- Still Heater Functions ----------------
+    # ---------------- Still Heater ----------------
     def set_still_percentage(self, device_name, channel, percent):
         device = self.devices[device_name]
         with hardware_lock:
             device.set_still_voltage(percent)
 
-    def turn_off_still(self, device_name, channel):
+    def turn_off_still(self, device_name, channel, _):
         device = self.devices[device_name]
         with hardware_lock:
             device.set_still_voltage(0)
 
-    # --------------- Remote Functions -----------------
+    # ---------------- Device List ----------------
+    def get_devices(self, *_ignored):
+        result = {}
+        for name, dev in self.devices.items():
+            result[name] = {
+                "name": name,
+                "channels": self.get_channels_for_device(name),
+            }
+        return json.dumps(result)
+
+    # --------------- Command Dispatch ---------------
     def handle_cmd(self, cmd_str: str):
-        '''
-        Parse command of the form: 'cmd_func device_name channel value'
-        and call the appropriate function from the dispatch table.
-        '''
         parts = cmd_str.strip().split()
-
-        if len(parts) != 4:
-            raise ValueError("Command must be: 'cmd_func device_name channel value'")
-
-        cmd_func, device_name, channel, value = parts
+        cmd_func = parts[0]
 
         if cmd_func not in self.func_dict:
-            raise ValueError(f"Unknown command '{cmd_func}'")
+            print(f"[Client] Unknown command: {cmd_func}")
             return "1"
 
         func = self.func_dict[cmd_func]
+
+        # Special-case: get_devices takes no args
+        if cmd_func == "get_devices":
+            return func()
+
+        if len(parts) != 4:
+            print("[Client] Invalid command format")
+            return "1"
+
+        device_name, channel, value = parts[1:]
         func(device_name, channel, value)
+
         return "0"
 
-    # -------------- Thread functions ---------------
-    def stop(self):
-        self.stop_flag.set()
-
+    # --------------- Thread Loop ----------------
     def run(self):
-        '''
-        Main loop that listens for commands and processes them.
-        '''
         with socket.socket() as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind((self.host, self.port))
             s.listen()
-
             print("[Client] Ready for commands...")
 
             while not self.stop_flag.is_set():
                 try:
-                    s.settimeout(0.1)  # allows checking stop flag
+                    s.settimeout(0.1)
                     conn, addr = s.accept()
                 except socket.timeout:
                     continue
