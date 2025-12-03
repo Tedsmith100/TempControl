@@ -42,3 +42,20 @@ def connect_devices():
 
     # Filter out None entries
     return {k: v for k, v in connected.items() if v is not None}
+
+def get_channels_for_device(dev_name):
+        if dev_name in ("CTC100A", "CTC100B"):
+            return {
+                "4puheat": "heater",
+                "3puheat": "heater",
+                "4swheat": "switch",
+                "3swheat": "switch",
+                "AIO3": "switch",
+                "AIO4": "switch",
+            }
+        elif dev_name in ("LakeshoreModel372", "Lakeshore372"):
+            return {"still": "still_heater"}
+
+        return {}
+
+

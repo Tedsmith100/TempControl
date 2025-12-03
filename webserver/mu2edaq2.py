@@ -1,4 +1,5 @@
 from controller_server import DeviceControllerServer
+from device import get_channels_for_device
 from flask import Flask, render_template, request, jsonify, Response
 
 HOST = "127.0.0.1"
@@ -15,21 +16,7 @@ LAST_STATES = {}
 app = Flask(__name__, template_folder="templates")
 
 controller = DeviceControllerServer(HOST, PORT)
-
-def get_channels_for_device(dev_name):
-    if dev_name in ("CTC100A", "CTC100B"):
-        return {
-            "4puheat": "heater",
-            "3puheat": "heater",
-            "4swheat": "switch",
-            "3swheat": "switch",
-            "AIO3": "switch",
-            "AIO4": "switch",
-        }
-    elif dev_name in ("LakeshoreModel372", "Lakeshore372"):
-        return {"still": "still_heater"}
-    # If later add Lakeshore224 mapping, add here
-    return {}
+devices = controller.get_devices()
 
 # ROUTES
 @app.route("/")
@@ -120,6 +107,7 @@ def api_heater_off():
     controller.turn_off_heater(dev, ch)
     return jsonify(status="ok")
 
+
 # STILL HEATER CONTROL
 @app.route("/api/set_still_percentage", methods=["POST"])
 def api_set_still():
@@ -150,3 +138,4 @@ def api_still_off():
 if __name__ == "__main__":
     # run webserver on port 8083
     app.run(debug=False, host="0.0.0.0", port=8085)
+
